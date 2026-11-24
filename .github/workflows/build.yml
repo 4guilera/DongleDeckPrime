@@ -9,16 +9,22 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
-      - name: Protocol tests (simulated hardware)
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Protocol, lock, and Jabra tests
         shell: powershell
         run: ./build.ps1 -Test
-      - name: Build portable package
+      - name: Build single-file portable package
         shell: powershell
         run: ./build.ps1 -Package
-      - uses: actions/upload-artifact@v7
+      - name: Inspect dist output
+        shell: powershell
+        run: Get-ChildItem -Path dist -Recurse | Format-Table FullName, Length -AutoSize
+      - uses: actions/upload-artifact@v4
         with:
-          name: DongleDeck-win-x64
+          name: DongleDeckPrime-win-x64
           path: |
             dist/*.zip
             dist/*.sha256
