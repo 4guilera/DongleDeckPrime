@@ -22,6 +22,13 @@ jobs:
       - name: Inspect dist output
         shell: powershell
         run: Get-ChildItem -Path dist -Recurse | Format-Table FullName, Length -AutoSize
+      - name: Smoke-test published single-file EXE startup
+        shell: powershell
+        run: |
+          $p = Start-Process -FilePath (Resolve-Path 'dist\DongleDeck.exe') -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow
+          $logPath = Join-Path $env:LOCALAPPDATA 'DongleDeck\dongledeck.log'
+          if (Test-Path $logPath) { Get-Content $logPath }
+          if ($p.ExitCode -ne 0) { throw "Published EXE self-test failed with exit code $($p.ExitCode)" }
       - uses: actions/upload-artifact@v4
         with:
           name: DongleDeckPrime-win-x64

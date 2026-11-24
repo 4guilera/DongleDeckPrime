@@ -481,12 +481,45 @@ namespace DongleDeck {
 
     public static class Program {
         [STAThread] public static int Main(string[] args) {
-            AppContext.SetSwitch("Switch.System.Windows.DoNotScaleForDpiChanges",false);
-            bool created;using(var mutex=new Mutex(true,"Local\\DongleDeck.Utility",out created)) {
-                if(!created) {MessageBox.Show("DongleDeck Prime is already open.");return 1;}
-                AppLog.Raw("DongleDeck Prime 0.6.0 started \u00B7 admin="+DellServiceStatus.IsAdministrator);
-                var app=new Application();app.DispatcherUnhandledException+=delegate(object sender,DispatcherUnhandledExceptionEventArgs e) {AppLog.Raw(e.Exception.ToString());MessageBox.Show(e.Exception.Message,"DongleDeck Prime");e.Handled=true;};
-                new MainWindow().Show();return app.Run();
+            bool selfTest=args!=null && args.Any(a=>string.Equals(a,"--self-test",StringComparison.OrdinalIgnoreCase));
+            AppDomain.CurrentDomain.UnhandledException+=delegate(object sender,UnhandledExceptionEventArgs e) {
+                string msg=e.ExceptionObject!=null?e.ExceptionObject.ToString():"Unknown fatal error";
+                AppLog.Raw("FATAL UnhandledException: "+msg);
+                if(selfTest) Console.Error.WriteLine(msg);
+                else try {MessageBox.Show(msg,"DongleDeck Prime - Startup Error",MessageBoxButton.OK,MessageBoxImage.Error);} catch {}
+            };
+            TaskScheduler.UnobservedTaskException+=delegate(object sender,UnobservedTaskExceptionEventArgs e) {
+                AppLog.Raw("UnobservedTaskException: "+e.Exception);
+                e.SetObserved();
+            };
+            try {
+                AppContext.SetSwitch("Switch.System.Windows.DoNotScaleForDpiChanges",false);
+                AppLog.Raw("DongleDeck Prime 0.6.0 starting \u00B7 admin="+DellServiceStatus.IsAdministrator+" \u00B7 baseDir="+AppContext.BaseDirectory);
+                bool created;using(var mutex=new Mutex(true,"Local\\DongleDeck.Utility",out created)) {
+                    if(!created && !selfTest) {MessageBox.Show("DongleDeck Prime is already open.");return 1;}
+                    var app=new Application();
+                    app.DispatcherUnhandledException+=delegate(object sender,DispatcherUnhandledExceptionEventArgs e) {
+                        AppLog.Raw("DispatcherUnhandledException: "+e.Exception);
+                        if(!selfTest) MessageBox.Show(e.Exception.Message,"DongleDeck Prime");
+                        e.Handled=true;
+                    };
+                    var main=new MainWindow();
+                    AppLog.Raw("MainWindow initialized successfully");
+                    if(selfTest) {
+                        Console.WriteLine("SELF-TEST OK");
+                        return 0;
+                    }
+                    main.Show();
+                    return app.Run();
+                }
+            } catch(Exception ex) {
+                AppLog.Raw("FATAL Main: "+ex);
+                if(selfTest) {
+                    Console.Error.WriteLine("SELF-TEST FAILED: "+ex);
+                    return 1;
+                }
+                try {MessageBox.Show("DongleDeck Prime failed to start:\n\n"+ex.Message+"\n\nDetails were written to:\n"+AppLog.PathName,"DongleDeck Prime - Startup Error",MessageBoxButton.OK,MessageBoxImage.Error);} catch {}
+                return 1;
             }
         }
     }
