@@ -40,7 +40,7 @@ namespace DongleDeck {
         RawActivityMonitor rawActivity;
         DeviceChangeMonitor hotplug;
         bool topologyPending,checkingTopology;
-        bool busy,updating,finishing,closeAfter,listening,scanAnimated,comboClaimActive;
+        bool busy,updating,finishing,closeAfter,listening,scanAnimated,comboClaimActive,selfTestMode;
         CancellationTokenSource cancellation;
         PairingSession pairing;
         readonly DateTime[] lastInputUi=new DateTime[3];
@@ -100,7 +100,7 @@ namespace DongleDeck {
                 }));
             };
             window.SourceInitialized+=delegate {rawActivity=new RawActivityMonitor(window,OnInput);hotplug=new DeviceChangeMonitor(window,OnHardwareChanged);};
-            window.Loaded+=async delegate {await Refresh(false);};
+            window.Loaded+=async delegate {if(!selfTestMode) await Refresh(false);};
             window.Closing+=delegate(object sender,CancelEventArgs e) {if(busy) {e.Cancel=true;closeAfter=true;if(cancellation!=null) cancellation.Cancel();bottom.Text="Finishing receiver operation before closing\u2026";}};
             window.Closed+=delegate {activityTimer.Stop();hotplugTimer.Stop();StopWatcher();if(hotplug!=null) hotplug.Dispose();if(rawActivity!=null) rawActivity.Dispose();JabraManager.Default.Dispose();};
             hotplugTimer.Interval=TimeSpan.FromMilliseconds(650);hotplugTimer.Tick+=async delegate {hotplugTimer.Stop();await CheckTopology();};
@@ -110,6 +110,15 @@ namespace DongleDeck {
         T Find<T>(string name) where T:class {return (T)window.FindName(name);}
         static Button FindButton(DependencyObject child) {while(child!=null) {var button=child as Button;if(button!=null) return button;child=VisualTreeHelper.GetParent(child);}return null;}
         public void Show() {window.Show();}
+        public void RunSelfTestLayout() {
+            selfTestMode=true;
+            rows.Add(new DeviceSlot {Number=1,Kind=10,Id="70:BF:92:11:22:33",Model="Jabra Evolve2 65",Brand="Jabra",SupportsConnect=true,IsConnected=true,IsLocked=true,OwnerLabel="Test"});
+            candidates.Add(new Candidate {Kind=10,Id="70:BF:92:44:55:66",Model="Jabra Evolve2 75",Brand="Jabra",IsJabra=true});
+            window.ShowInTaskbar=false;window.WindowStyle=WindowStyle.None;window.Opacity=0;window.Left=-10000;window.Top=-10000;
+            window.Show();
+            window.UpdateLayout();
+            window.Close();
+        }
 
         void ApplyTheme(bool dark,bool save) {
             Theme.Apply(window,dark,save);themeButton.Content=dark?"Light mode":"Dark mode";
@@ -506,6 +515,8 @@ namespace DongleDeck {
                     var main=new MainWindow();
                     AppLog.Raw("MainWindow initialized successfully");
                     if(selfTest) {
+                        main.RunSelfTestLayout();
+                        AppLog.Raw("MainWindow layout & templates verified");
                         Console.WriteLine("SELF-TEST OK");
                         return 0;
                     }
